@@ -175,6 +175,7 @@ if (mpi_rank ==0):
     image = np.zeros(size_global, dtype =np.int32);
     index =0;
     num_received_images = 0;
+    # send out all the images
     for i in range(mpi_size):
         index = communicate_rank_0(comm, index);
     while(True):
