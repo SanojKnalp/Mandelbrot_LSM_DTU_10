@@ -52,37 +52,39 @@ def compute_image(size, xlim, ylim):
                     break
     return image;
 
-def split_by_index_and_chunk(xlim, size, index, chunk_size):
+def split_by_index_and_chunk(xlim, size, index, chunk_size, size_global, xlim_global):
     # start by computing the local size
-    divisor = size[0]/chunk_size;
-    if ((size[0]-chunk_size*index) >=0):
-        length_of_x = xlim[1]-xlim[0];
+    divisor = size_global[0]/chunk_size;
+    if ((size_global[0]-chunk_size*index) >0):
+        length_of_x = xlim_global[1]-xlim_global[0];
         local_length = length_of_x/divisor;
-        x_lower_lim = index*local_length + xlim[0];
-        if((size[0]-chunk_size*(index+1)) >=0):
+        x_lower_lim = index*local_length + xlim_global[0];
+        if((size_global[0]-chunk_size*(index+1)) >=0):
             x_upper_lim = x_lower_lim + local_length;
             new_upper_size_lim = chunk_size;
         else:
-            local_length = size[1]-local_length*index;
+            local_length = size_global[0]-local_length*index;
             x_upper_lim = x_lower_lim + local_length;
-            new_upper_size_lim = size[1]-index*chunk_size;
+            new_upper_size_lim = size_global[0]-index*chunk_size;
         new_x_lim = x_lower_lim, x_upper_lim;
         new_size = int(new_upper_size_lim), 1000;
-    return new_size, new_x_lim;
-
+        return new_size, new_x_lim;
+    else:
+        print("we end here");
+        return 0, 0;
 def communicate_rank_0(comm, index):
-    receive_buffer = np.empty(1, type=np.int32);
+    receive_buffer = np.empty(1, dtype=np.int32);
     comm.Recv(receive_buffer);
-    send_buffer = np.array([index + 1], type=np.int32);
+    send_buffer = np.array([index + 1], dtype=np.int32);
     comm.Send(send_buffer, dest=receive_buffer[0]);
     return index+1
 
 
 def communicate_index(comm):
     # ask rank 0 what index is free
-    send_buffer = np.array([mpi_rank], type=np.int32);
+    send_buffer = np.array([mpi_rank], dtype=np.int32);
     comm.Send(send_buffer, dest=0);
-    receive_buffer = np.empty(1, type=np.int32);
+    receive_buffer = np.empty(1, dtype=np.int32);
     comm.Recv(receive_buffer, source=0);
     return receive_buffer[0];
 
@@ -93,9 +95,9 @@ def communicate_the_image_back(index, image, comm):
     comm.Send(image, dest=0);
 
 def receive_image(comm):
-    index_receive_buffer = np.empty(1, type=np.int32);
+    index_receive_buffer = np.empty(1, dtype=np.int32);
     comm.Recv(index_receive_buffer);
-    image_receive_buffer = np.empty([chunk_size, 1000],type=np.int32);
+    image_receive_buffer = np.empty([chunk_size, 1000],dtype=np.int32);
     comm.Recv(image_receive_buffer,status=status);
     num_received_elements = int(status.Get_elements(MPI.INT)/1000);
     return index_receive_buffer[0], image_receive_buffer, num_received_elements;
@@ -173,25 +175,29 @@ max_images = compute_max_image_number(chunk_size, size);
 
 if (mpi_rank ==0):
     image = np.zeros(size_global, dtype =np.int32);
-    index =0;
+    index =-1; # we need to start at -1 because of how we setup the function that sends the indices
     num_received_images = 0;
     # send out all the images
-    for i in range(mpi_size):
+    for i in range(1, mpi_size):
         index = communicate_rank_0(comm, index);
     while(True):
         local_index, local_image, num_received_elements = receive_image(comm);
         num_received_images +=1;
 
-        
+        print("num received images", num_received_images);
         if(index < max_images):
             index = communicate_rank_0(comm, index);
         assemble_image(local_image, image, local_index, chunk_size, num_received_elements);
         if(num_received_images == max_images): break;
 else:
     while(True):
+        print("rank ", mpi_rank, "is still running");
         index = communicate_index(comm);
-        size, xlim = split_by_index_and_chunk(xlim, size, index, chunk_size);
+        print("index:", index);
+        if(index >= max_images): break;
+        size, xlim = split_by_index_and_chunk(xlim, size, index, chunk_size, size_global, x_lim_global);
         # Convert to numpy arrays, not really needed...
+        if(size == 0): break;
         size = np.asarray(size)
         xlim = np.asarray(xlim)
         ylim = np.asarray(ylim)
