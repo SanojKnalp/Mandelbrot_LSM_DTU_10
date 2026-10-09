@@ -67,7 +67,7 @@ def split_by_index_and_chunk(xlim, size, index, chunk_size, size_global, xlim_gl
             x_upper_lim = x_lower_lim + local_length;
             new_upper_size_lim = size_global[0]-index*chunk_size;
         new_x_lim = x_lower_lim, x_upper_lim;
-        new_size = int(new_upper_size_lim), 1000;
+        new_size = int(new_upper_size_lim), int(size_global[1]);
         return new_size, new_x_lim;
     else:
         print("we end here");
@@ -94,12 +94,12 @@ def communicate_the_image_back(index, image, comm):
     #send the image
     comm.Send(image, dest=0);
 
-def receive_image(comm):
+def receive_image(comm, size_global):
     index_receive_buffer = np.empty(1, dtype=np.int32);
     comm.Recv(index_receive_buffer);
-    image_receive_buffer = np.empty([chunk_size, 1000],dtype=np.int32);
+    image_receive_buffer = np.empty([chunk_size, size_global[1]],dtype=np.int32);
     comm.Recv(image_receive_buffer,status=status);
-    num_received_elements = int(status.Get_elements(MPI.INT)/1000);
+    num_received_elements = int(status.Get_elements(MPI.INT)/size_global[1]);
     return index_receive_buffer[0], image_receive_buffer, num_received_elements;
 
 def compute_max_image_number(chunk_size, size):
@@ -141,7 +141,7 @@ for h in ("help", "-h", "-help", "--help"):
 
 # First we define all the defaults, then we let the arguments overwrite
 # them.
-chunk_size = 10;
+chunk_size = 100;
 size = 1000, 1000
 xlim = -2.2, 0.75
 ylim = -1.3, 1.3
@@ -181,19 +181,18 @@ if (mpi_rank ==0):
     for i in range(1, mpi_size):
         index = communicate_rank_0(comm, index);
     while(True):
-        local_index, local_image, num_received_elements = receive_image(comm);
+        local_index, local_image, num_received_elements = receive_image(comm, size_global);
         num_received_images +=1;
 
         print("num received images", num_received_images);
         if(index < max_images):
             index = communicate_rank_0(comm, index);
+            print("index", index);
         assemble_image(local_image, image, local_index, chunk_size, num_received_elements);
         if(num_received_images == max_images): break;
 else:
     while(True):
-        print("rank ", mpi_rank, "is still running");
         index = communicate_index(comm);
-        print("index:", index);
         if(index >= max_images): break;
         size, xlim = split_by_index_and_chunk(xlim, size, index, chunk_size, size_global, x_lim_global);
         # Convert to numpy arrays, not really needed...
