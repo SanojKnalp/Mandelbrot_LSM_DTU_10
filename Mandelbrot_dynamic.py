@@ -75,7 +75,6 @@ def split_by_index_and_chunk(xlim, size, index, chunk_size, size_global, xlim_gl
 
 
 def communicate_rank_0(comm, index):
-    print("index", index);
     receive_buffer = np.empty(1, dtype=np.int32);
     comm.Recv(receive_buffer);
     send_buffer = np.array([index + 1], dtype=np.int32);
@@ -94,8 +93,7 @@ def communicate_index(comm):
 
 def communicate_the_image_back(index, image, comm):
     # send the index
-    comm.Send(np.array([index], 
-                       np.int32), dest=0);
+    comm.Send(np.array([index], np.int32), dest=0);
     #send the image
     comm.Send(image, dest=0);
 
