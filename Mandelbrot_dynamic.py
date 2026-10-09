@@ -72,11 +72,15 @@ def split_by_index_and_chunk(xlim, size, index, chunk_size, size_global, xlim_gl
     else:
         print("we end here");
         return 0, 0;
+
+
 def communicate_rank_0(comm, index):
+    print("index", index);
     receive_buffer = np.empty(1, dtype=np.int32);
     comm.Recv(receive_buffer);
     send_buffer = np.array([index + 1], dtype=np.int32);
     comm.Send(send_buffer, dest=receive_buffer[0]);
+    print("rank:", receive_buffer[0], "gets index:", index+1);
     return index+1
 
 
@@ -90,7 +94,8 @@ def communicate_index(comm):
 
 def communicate_the_image_back(index, image, comm):
     # send the index
-    comm.Send(np.array([index], np.int32), dest=0);
+    comm.Send(np.array([index], 
+                       np.int32), dest=0);
     #send the image
     comm.Send(image, dest=0);
 
@@ -184,11 +189,10 @@ if (mpi_rank ==0):
         local_index, local_image, num_received_elements = receive_image(comm, size_global);
         num_received_images +=1;
 
-        print("num received images", num_received_images);
-        if(index < max_images):
-            index = communicate_rank_0(comm, index);
-            print("index", index);
+        print("num received images", num_received_images, local_index);
+        index = communicate_rank_0(comm, index);
         assemble_image(local_image, image, local_index, chunk_size, num_received_elements);
+        print("assembled image", num_received_images,"from index", local_index);
         if(num_received_images == max_images): break;
 else:
     while(True):
@@ -203,6 +207,7 @@ else:
 
         image = compute_image(size, xlim, ylim);
         communicate_the_image_back(index, image, comm);   
+        print("just send the image from rank", mpi_rank, 'with index', index);
 
 
 import matplotlib.pyplot as plt
