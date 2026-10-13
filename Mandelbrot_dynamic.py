@@ -75,33 +75,33 @@ def split_by_index_and_chunk(xlim, size, index, chunk_size, size_global, xlim_gl
 
 
 def communicate_rank_0(comm, index):
-    receive_buffer = np.empty(1, dtype=np.int32);
-    comm.Recv(receive_buffer);
-    send_buffer = np.array([index + 1], dtype=np.int32);
-    comm.Send(send_buffer, dest=receive_buffer[0]);
-    print("rank:", receive_buffer[0], "gets index:", index+1);
+    receive_buffer_rank = np.empty(1, dtype=np.int32);
+    comm.Recv(receive_buffer_rank, tag = 1);
+    send_buffer_rank = np.array([index + 1], dtype=np.int32);
+    comm.Send(send_buffer_rank, dest=receive_buffer_rank[0], tag = 2);
+    print("rank:", receive_buffer_rank[0], "gets index:", index+1);
     return index+1
 
 
 def communicate_index(comm):
     # ask rank 0 what index is free
     send_buffer = np.array([mpi_rank], dtype=np.int32);
-    comm.Send(send_buffer, dest=0);
+    comm.Send(send_buffer, dest=0, tag = 1);
     receive_buffer = np.empty(1, dtype=np.int32);
-    comm.Recv(receive_buffer, source=0);
+    comm.Recv(receive_buffer, source=0, tag = 2);
     return receive_buffer[0];
 
 def communicate_the_image_back(index, image, comm):
     # send the index
-    comm.Send(np.array([index], np.int32), dest=0);
+    comm.Send(np.array([index], np.int32), dest=0, tag = 3);
     #send the image
-    comm.Send(image, dest=0);
+    comm.Send(image, dest=0, tag = 4);
 
 def receive_image(comm, size_global):
     index_receive_buffer = np.empty(1, dtype=np.int32);
-    comm.Recv(index_receive_buffer);
+    comm.Recv(index_receive_buffer, tag = 3);
     image_receive_buffer = np.empty([chunk_size, size_global[1]],dtype=np.int32);
-    comm.Recv(image_receive_buffer,status=status);
+    comm.Recv(image_receive_buffer,status=status, tag = 4);
     num_received_elements = int(status.Get_elements(MPI.INT)/size_global[1]);
     return index_receive_buffer[0], image_receive_buffer, num_received_elements;
 
@@ -142,9 +142,9 @@ for h in ("help", "-h", "-help", "--help"):
         print(_help)
         sys.exit(0)
 
-# First we define all the defaults, then we let the arguments overwrite
+# First we define all the defaults, then we let the arguments overwrite 
 # them.
-chunk_size = 10;
+chunk_size = 2;
 size = 1000, 1000
 xlim = -2.2, 0.75
 ylim = -1.3, 1.3
@@ -189,6 +189,7 @@ if (mpi_rank ==0):
 
         print("num received images", num_received_images, local_index);
         index = communicate_rank_0(comm, index);
+        print("index", index);
         assemble_image(local_image, image, local_index, chunk_size, num_received_elements);
         print("assembled image", num_received_images,"from index", local_index);
         if(num_received_images == max_images): break;
