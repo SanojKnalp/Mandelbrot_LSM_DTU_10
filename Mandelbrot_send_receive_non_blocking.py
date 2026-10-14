@@ -120,14 +120,14 @@ if(mpi_rank == 0):
     receive_buffer[:,0:size[1]] += image;
     total_received_elements = size[1];
     print(total_received_elements);
-    requests = []
-    buffers = []
+    requests = [];
+    buffers = [];
     for i in range(1, mpi_size):
         data_size, _ = calculate_local_size_and_ylim(size_global, y_lim_global, i, mpi_size);
         data = np.empty(data_size, dtype=np.int32);
         buffers.append(data);
         requests.append(comm.Irecv(data, source=i));
-    MPI.Request.Waitall(requests)
+    MPI.Request.Waitall(requests);
     for data in buffers:
         num_received_elements = data.shape[1];
         receive_buffer[:,total_received_elements:total_received_elements + num_received_elements] = data;
