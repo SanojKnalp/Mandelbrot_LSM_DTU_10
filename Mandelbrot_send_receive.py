@@ -20,18 +20,19 @@ def calculate_local_size_and_xlim(size, x_lim, mpi_rank, mpi_size):
     return new_size, new_x_lim;
 
 def calculate_local_size_and_ylim(size, y_lim, mpi_rank, mpi_size):
-    local_batch_size = size[0]/mpi_size;    
+    local_batch_size = size[1]/mpi_size;    
     if ((math.floor(local_batch_size) != local_batch_size)):
         local_batch_size = math.floor(local_batch_size);
-        if((mpi_rank+1) == mpi_size):
-            local_batch_size += 1
+        remainder = size[1] - mpi_size*local_batch_size;
+        if (mpi_rank < remainder):
+            local_batch_size+=1;
     new_size = 1000, int(local_batch_size);
-    length_of_x = y_lim[1]-y_lim[0];
-    local_length = length_of_x/mpi_size;
-    x_lower_lim = mpi_rank*local_length + y_lim[0];
-    x_upper_lim = x_lower_lim + local_length;
-    new_x_lim = x_lower_lim, x_upper_lim;
-    return new_size, new_x_lim;
+    length_of_y = y_lim[1]-y_lim[0];
+    local_length = length_of_y/mpi_size;
+    y_lower_lim = mpi_rank*local_length + y_lim[0];
+    y_upper_lim = y_lower_lim + local_length;
+    new_y_lim = y_lower_lim, y_upper_lim;
+    return new_size, new_y_lim;
 # Initialize MPI
 comm = MPI.COMM_WORLD
 mpi_rank = comm.Get_rank()
@@ -97,7 +98,7 @@ xlim = np.asarray(xlim)
 ylim = np.asarray(ylim)
 
 # Dimensions of the image
-image = np.zeros(size, dtype =np.int32);
+local_image = np.zeros(size, dtype =np.int32);
 
 xconst = np.diff(xlim)[0] / size[0]
 yconst = np.diff(ylim)[0] / size[1]
@@ -111,28 +112,33 @@ for x in range(size[0]):
         for i in range(100):
             z = z*z + c
             if np.abs(z) > 2:
-                image[x, y] = i
+                local_image[x, y] = i
                 break
+
 # Now we gather all information at rank 0
+import matplotlib.pyplot as plt
 if(mpi_rank == 0):
     receive_buffer = np.zeros(size_global, dtype=np.int32);
-    receive_buffer[:, 0:size[1] ] += image;
+    receive_buffer[:, 0:size[1]] += local_image;
     total_received_elements = size[1];
     print(total_received_elements);
     
     for i in range(1, mpi_size):
-        data = np.empty(size, dtype=np.int32);
-        comm.Recv(data, source=i, status=status);
-        num_received_elements = int(status.Get_elements(MPI.INT)/1000);
+        print("i", i);
+        data_size, _ = calculate_local_size_and_ylim(
+        size_global, y_lim_global, i, mpi_size);
+        data = np.empty(data_size, dtype=np.int32);
+        comm.Recv(data, source=i, status=status, tag = i);
+        num_received_elements = data.shape[1];
+        print(num_received_elements);
         receive_buffer[ :,total_received_elements:total_received_elements + num_received_elements] = data[:, 0:num_received_elements];
         total_received_elements += num_received_elements;
     image = receive_buffer;
 else:
-    comm.Send([image, MPI.INT], dest=0);
+    comm.Send([local_image, MPI.INT], dest=0, tag = mpi_rank);
 
 
 
-import matplotlib.pyplot as plt
 if (mpi_rank == 0):
     # Increase font-size
     plt.rcParams.update({
