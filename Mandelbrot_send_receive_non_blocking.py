@@ -115,6 +115,7 @@ for x in range(size[0]):
                 image[x, y] = i
                 break
 # Now we gather all information at rank 0
+start_time = MPI.Wtime()
 if(mpi_rank == 0):
     receive_buffer = np.zeros(size_global, dtype=np.int32);
     receive_buffer[:,0:size[1]] += image;
@@ -136,9 +137,10 @@ if(mpi_rank == 0):
 else:
     req = comm.Isend([image, MPI.INT], dest=0);
     #req.Wait();
+end_time = MPI.Wtime()
+print("time:",end_time-start_time);
 
-
-
+ 
 import matplotlib.pyplot as plt
 if (mpi_rank == 0):
     # Increase font-size

@@ -117,6 +117,7 @@ for x in range(size[0]):
 
 # Now we gather all information at rank 0
 import matplotlib.pyplot as plt
+start_time = MPI.Wtime()
 if(mpi_rank == 0):
     receive_buffer = np.zeros(size_global, dtype=np.int32);
     receive_buffer[:, 0:size[1]] += local_image;
@@ -136,7 +137,9 @@ if(mpi_rank == 0):
     image = receive_buffer;
 else:
     comm.Send([local_image, MPI.INT], dest=0, tag = mpi_rank);
-
+end_time = MPI.Wtime()
+if (mpi_rank == 0):
+    print("time:",end_time-start_time);
 
 
 if (mpi_rank == 0):
